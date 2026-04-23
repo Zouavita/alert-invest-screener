@@ -678,25 +678,10 @@ function scrFaq(btn) {{
 <!-- /wp:html -->"""
 
 # ─── WORDPRESS DEPLOY ─────────────────────────────────────────────────────────
-def wp_auth() -> str:
-    try:
-        r = requests.post(
-            f"{WP_URL}/wp-json/jwt-auth/v1/token",
-            json={"username": WP_USER, "password": WP_PASSWORD},
-            timeout=15
-        )
-        return r.json().get("token", "")
-    except Exception as e:
-        print(f"  WP auth error: {e}")
-        return ""
-
 def deploy_page(html_content: str, updated_at: str) -> bool:
-    token = wp_auth()
-    if not token:
-        print("  ✗ Could not get WP token")
-        return False
-
-    headers = {"Authorization": f"Bearer {token}"}
+    import base64
+    credentials = base64.b64encode(f"{WP_USER}:{WP_PASSWORD}".encode()).decode()
+    headers = {"Authorization": f"Basic {credentials}"}
     title   = "S&P 500 Value Stock Screener — Graham, Lynch & Buffett | Alert Invest"
 
     payload = {
