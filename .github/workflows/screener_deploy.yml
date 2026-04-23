@@ -1,0 +1,29 @@
+name: Screener Page Deploy
+
+on:
+  schedule:
+    - cron: "0 20 * * 1"   # Monday    3pm ET  (after your Monday afternoon update)
+    - cron: "0 20 * * 3"   # Wednesday 3pm ET
+    - cron: "0 20 * * 5"   # Friday    3pm ET
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Build and deploy screener page
+        env:
+          WP_USER:     ${{ secrets.WP_USER }}
+          WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
+        run: python screener_builder.py
