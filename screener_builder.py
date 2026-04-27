@@ -37,7 +37,7 @@ def parse_top10(rows):
     for row in rows[hi+1:]:
         if len(row)<3: continue
         d = {headers[j]: row[j].strip() if j<len(row) else "" for j in range(len(headers))}
-        tk = re.sub(r'[^\w\s]', '', d.get("Ticker","")).strip()
+        tk = re.sub(r'[^A-Z0-9]', '', d.get("Ticker","").upper()).strip()
         if tk and "no stock" not in tk.lower():
             d["Ticker"] = tk; out.append(d)
     return out[:10]
@@ -128,22 +128,25 @@ def build_html(stocks, top10, updated_at):
     </div>
   </div>
 </div>"""
-        # Others #2-#10 compact list
+        # Others #2-#10 compact list — #3+ blurred for free users
         t10_html += '<div class="t10-rest">'
         for i, t in enumerate(top10[1:], 2):
-            tk2 = t.get("Ticker",""); co2 = t.get("Company","")[:20]
+            tk2 = re.sub(r"[^A-Z0-9]", "", t.get("Ticker","").encode("ascii","ignore").decode("ascii").upper())
+            co2 = t.get("Company","")[:20]
             sec2 = t.get("Sector",""); score2 = t.get("Score","")
-            sigs_raw2 = t.get("Signals","")
+            sigs2 = clean_signals(t.get("Signals",""))
             c2 = sc(sec2)
-            sigs2 = clean_signals(sigs_raw2)
-            t10_html += f"""<div class="t10r-row">
-  <span class="t10r-rank">#{i}</span>
-  <span class="t10r-tk">{tk2}</span>
-  <span class="t10r-co">{co2}</span>
-  <span class="t10r-sec" style="background:{c2}18;color:{c2}">{sec2}</span>
-  <span class="t10r-sigs">{sigs2}</span>
-  <span class="t10r-score">{score2}</span>
-</div>"""
+            blur = " t10r-locked" if i >= 3 else ""
+            t10_html += (
+                f'<div class="t10r-row{blur}">'
+                f'<span class="t10r-rank">#{i}</span>'
+                f'<span class="t10r-tk">{tk2}</span>'
+                f'<span class="t10r-co">{co2}</span>'
+                f'<span class="t10r-sec" style="background:{c2}18;color:{c2}">{sec2}</span>'
+                f'<span class="t10r-sigs">{sigs2}</span>'
+                f'<span class="t10r-score">{score2}</span>'
+                f'</div>'
+            )
         t10_html += '</div>'
 
     # ── SECTOR PILLS ─────────────────────────────────────────────────────────
@@ -395,10 +398,10 @@ function fFaq(q){var a=q.nextElementSibling,ch=q.querySelector('.faqch'),open=a.
       <span>&#10003; Mon &middot; Wed &middot; Fri updates</span>
     </div>
     <div class="pw-btns">
-      <a href="{PATREON_URL}" class="pwb-main">&#128994; Subscribe on Patreon</a>
-      <a href="{WP_URL}/login" class="pwb-login">Already a member? Sign in</a>
+      <a href="{PATREON_URL}" class="pwb-main" target="_blank" rel="noopener">&#128994; Get Portfolio Builder Access</a>
+      <a href="https://alert-invest-portfolio-tool.streamlit.app" class="pwb-login" target="_blank" rel="noopener">Already a member? Sign in</a>
     </div>
-    <div class="pwn">Cancel anytime &middot; Instant access after subscription</div>
+    <div class="pwn">Portfolio Builder membership on Patreon &middot; Cancel anytime</div>
   </div>
 </div>
 
