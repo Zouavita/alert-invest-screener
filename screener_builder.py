@@ -8,7 +8,12 @@ WP_USER     = os.environ.get("WP_USER", "")
 WP_PASSWORD = os.environ.get("WP_PASSWORD", "")
 WP_SLUG     = "stock-screener"
 FREE_ROWS   = 5  # rows visible before paywall
-PATREON_URL = "https://www.patreon.com/cw/AlertInvest/membership"
+PATREON_URL          = "https://www.patreon.com/cw/AlertInvest/membership"
+PATREON_CLIENT_ID    = "LOmI5CCfm8qswJK2JuO-cmVfeN2HiE3S0SneCiICAztq7jH4fWgDfpYbFkzn05yv"
+PATREON_CAMPAIGN_ID  = "14741872"
+PATREON_REDIRECT     = "https://alert-invest.com/stock-screener/"
+PATREON_TIER         = "Portfolio Builder"
+PATREON_JOIN_URL     = "https://www.patreon.com/cw/AlertInvest/membership"
 
 SCREENER_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAgh9VdS0Ox8xrDf8XYCslQwCNuKfVRwJ9329YkEE7Fn5BtW4bkLrts19MnNjjkHbnp6twVB99Z21I/pub?gid=310948557&single=true&output=csv"
 TOP10_CSV    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAgh9VdS0Ox8xrDf8XYCslQwCNuKfVRwJ9329YkEE7Fn5BtW4bkLrts19MnNjjkHbnp6twVB99Z21I/pub?gid=1532740227&single=true&output=csv"
