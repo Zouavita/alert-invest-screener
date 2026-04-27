@@ -29,7 +29,7 @@ import requests
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 WP_URL      = "https://alert-invest.com"
-WP_USER     = os.environ.get("WP_USER", "Mike")
+WP_USER     = os.environ.get("WP_USER", "")
 WP_PASSWORD = os.environ.get("WP_PASSWORD", "")
 WP_SLUG     = "stock-screener"
 
