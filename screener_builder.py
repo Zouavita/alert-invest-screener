@@ -249,6 +249,7 @@ def build_html(stocks, top10, updated_at):
 .t10r-sec{font-size:9px;font-weight:700;padding:1px 5px;border-radius:2px;white-space:nowrap}
 .t10r-sigs{display:flex;gap:3px;flex-wrap:wrap}
 .t10r-score{font-size:10px;font-weight:700;color:#15803d;margin-left:auto;white-space:nowrap}
+.t10r-locked{filter:blur(4px);user-select:none;pointer-events:none;opacity:.6}
 /* TABLE */
 .tw{background:#fff;border:1px solid #d1d5db;border-radius:5px;overflow:hidden}
 .tbar{padding:6px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb;display:flex;align-items:center;justify-content:space-between}
