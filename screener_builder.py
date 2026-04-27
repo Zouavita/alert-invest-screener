@@ -7,7 +7,7 @@ WP_URL      = "https://alert-invest.com"
 WP_USER     = os.environ.get("WP_USER", "")
 WP_PASSWORD = os.environ.get("WP_PASSWORD", "")
 WP_SLUG     = "stock-screener"
-FREE_ROWS   = 2  # only 2 free rows visible
+FREE_ROWS   = 5  # rows visible before paywall
 PATREON_URL = "https://www.patreon.com/cw/AlertInvest/membership"
 
 SCREENER_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAgh9VdS0Ox8xrDf8XYCslQwCNuKfVRwJ9329YkEE7Fn5BtW4bkLrts19MnNjjkHbnp6twVB99Z21I/pub?gid=310948557&single=true&output=csv"
@@ -170,9 +170,9 @@ def build_html(stocks, top10, updated_at):
         dp="true" if pa=="PASS" else "false"
         da="true" if (gr in("Candidate","Near Miss") or ly in("Candidate","Near Miss")
                       or bu in("Candidate","Near Miss") or pa=="PASS") else "false"
-        lk = " locked" if i >= FREE_ROWS else ""
+        # All rows included — JS controls visibility based on FREE_ROWS and auth
         rows += (
-            f'<tr class="sr{lk}" data-tk="{tk.lower()}" data-co="{co.lower()}" data-sec="{sec}" '
+            f'<tr class="sr" data-idx="{i}" data-tk="{tk.lower()}" data-co="{co.lower()}" data-sec="{sec}" '
             f'data-g="{dg}" data-l="{dl}" data-b="{db}" data-p="{dp}" data-a="{da}">'
             f'<td class="tds"><span class="stk">{tk}</span><span class="sco">{co[:24]}</span></td>'
             f'<td><span style="background:{c}15;color:{c};font-size:9px;font-weight:700;'
@@ -301,27 +301,91 @@ table.t tbody tr:nth-child(even) td{background:#fafafa}
 @media(max-width:900px){table.t th:nth-child(n+9),table.t td:nth-child(n+9){display:none}}
 @media(max-width:600px){.t10-featured{flex-direction:column;align-items:flex-start}.t10f-right{align-items:flex-start}table.t th:nth-child(n+6),table.t td:nth-child(n+6){display:none}}"""
 
-    JS = """var gP='all',gS='',gQ='';
-function apply(){
-  var rows=document.querySelectorAll('#tbody .sr'),shown=0;
+    JS = """
+// ── AUTH CHECK ────────────────────────────────────────────────────────
+// Check for Patreon session token in URL (same as portfolio analyzer)
+var IS_MEMBER = false;
+(function(){
+  var params = new URLSearchParams(window.location.search);
+  var sid = params.get('sid') || localStorage.getItem('ai_sid');
+  if(sid){ IS_MEMBER = true; localStorage.setItem('ai_sid', sid); }
+})();
+
+var FREE_ROWS = """ + str(5) + """;
+var PATREON_URL = \'""" + PATREON_URL + """\'
+var gP='all',gS='',gQ='',visibleCount=FREE_ROWS;
+
+function initTable(){
+  var rows = document.querySelectorAll('#tbody .sr');
+  // Hide all rows beyond FREE_ROWS initially for non-members
   rows.forEach(function(r){
-    var ok=true;
-    if(gP==='g'&&r.dataset.g!=='true')ok=false;
-    else if(gP==='l'&&r.dataset.l!=='true')ok=false;
-    else if(gP==='b'&&r.dataset.b!=='true')ok=false;
-    else if(gP==='p'&&r.dataset.p!=='true')ok=false;
-    else if(gP==='a'&&r.dataset.a!=='true')ok=false;
-    if(gS&&r.dataset.sec!==gS)ok=false;
-    if(gQ&&r.dataset.tk.indexOf(gQ)===-1&&r.dataset.co.indexOf(gQ)===-1)ok=false;
-    r.style.display=ok?'':'none';if(ok)shown++;
+    var idx = parseInt(r.dataset.idx);
+    if(!IS_MEMBER && idx >= FREE_ROWS){
+      r.style.display = 'none';
+    }
   });
-  var el=document.getElementById('rcnt');
-  if(el)el.textContent=shown+' result'+(shown!==1?'s':'');
+  // Show paywall after FREE_ROWS-th visible row
+  renderPaywall();
+  updateCount();
 }
+
+function renderPaywall(){
+  var existing = document.getElementById('inline-pw');
+  if(existing) existing.remove();
+  if(IS_MEMBER) return;
+  // Insert paywall after last visible row
+  var rows = document.querySelectorAll('#tbody .sr');
+  var lastVisible = null;
+  rows.forEach(function(r){
+    if(r.style.display !== 'none') lastVisible = r;
+  });
+  if(!lastVisible) return;
+  var pw = document.createElement('tr');
+  pw.id = 'inline-pw';
+  pw.innerHTML = '<td colspan="14"><div style="background:linear-gradient(to bottom,rgba(255,255,255,0),#fff 40%);height:60px;margin-bottom:0"></div>'
+    + '<div style="background:#fff;padding:24px;text-align:center;border-top:2px solid #e5e7eb">'
+    + '<div style="font-size:22px;margin-bottom:8px">&#128274;</div>'
+    + '<div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:6px">Unlock the Full Screener</div>'
+    + '<div style="font-size:12px;color:#6b7280;margin-bottom:14px">You\'re seeing <strong>' + FREE_ROWS + ' of """ + str(0) + """ stocks</strong>. Get full access with Portfolio Builder membership.</div>'
+    + '<div style="display:flex;flex-direction:column;align-items:center;gap:8px">'
+    + '<a href=\"' + PATREON_URL + '\" target=\"_blank\" style=\"display:inline-block;background:#2563eb;color:#fff;font-size:13px;font-weight:700;padding:10px 28px;border-radius:4px;text-decoration:none;width:280px\">&#128994; Get Portfolio Builder Access</a>'
+    + '<a href=\"https://alert-invest-portfolio-tool.streamlit.app\" target=\"_blank\" style=\"display:inline-block;background:#fff;color:#374151;font-size:12px;font-weight:600;padding:8px 28px;border-radius:4px;text-decoration:none;border:1px solid #d1d5db;width:280px\">Already a member? Sign in</a>'
+    + '</div>'
+    + '<div style=\"font-size:10px;color:#9ca3af;margin-top:8px\">Portfolio Builder membership &middot; Cancel anytime</div>'
+    + '</div></td>';
+  lastVisible.insertAdjacentElement('afterend', pw);
+}
+
+function apply(){
+  var rows = document.querySelectorAll('#tbody .sr');
+  var shown = 0;
+  rows.forEach(function(r){
+    var idx = parseInt(r.dataset.idx);
+    var philOk = true;
+    if(gP==='g'&&r.dataset.g!=='true')philOk=false;
+    else if(gP==='l'&&r.dataset.l!=='true')philOk=false;
+    else if(gP==='b'&&r.dataset.b!=='true')philOk=false;
+    else if(gP==='p'&&r.dataset.p!=='true')philOk=false;
+    else if(gP==='a'&&r.dataset.a!=='true')philOk=false;
+    var secOk = !gS || r.dataset.sec === gS;
+    var srchOk = !gQ || r.dataset.tk.indexOf(gQ)!==-1 || r.dataset.co.indexOf(gQ)!==-1;
+    var filterOk = philOk && secOk && srchOk;
+    // Members see all; free users see only first FREE_ROWS
+    var authOk = IS_MEMBER || idx < FREE_ROWS;
+    r.style.display = (filterOk && authOk) ? '' : 'none';
+    if(filterOk && authOk) shown++;
+  });
+  var el = document.getElementById('rcnt');
+  if(el) el.textContent = shown + ' result' + (shown!==1?'s':'');
+  renderPaywall();
+}
+
 function fPhil(btn,v){gP=v;document.querySelectorAll('.chip[onclick*="fPhil"]').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');apply();}
 function fSec(btn,v){gS=v;document.querySelectorAll('.chip[onclick*="fSec"]').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');apply();}
 function fSrch(v){gQ=v.toLowerCase().trim();apply();}
-function fFaq(q){var a=q.nextElementSibling,ch=q.querySelector('.faqch'),open=a.classList.contains('open');a.classList.toggle('open',!open);ch.style.transform=open?'':'rotate(180deg)';a.style.maxHeight=open?'0':(a.scrollHeight+20)+'px';}"""
+function fFaq(q){var a=q.nextElementSibling,ch=q.querySelector('.faqch'),open=a.classList.contains('open');a.classList.toggle('open',!open);ch.style.transform=open?'':'rotate(180deg)';a.style.maxHeight=open?'0':(a.scrollHeight+20)+'px';}
+window.addEventListener('DOMContentLoaded', initTable);
+"""
 
     return f"""<!-- wp:html -->
 <script type="application/ld+json">{json.dumps(schema)}</script>
@@ -386,24 +450,7 @@ function fFaq(q){var a=q.nextElementSibling,ch=q.querySelector('.faqch'),open=a.
   </div>
 </div>
 
-<div class="pw">
-  <div class="pwc">
-    <div class="pwl">&#128274;</div>
-    <div class="pwt">Unlock the Full Screener</div>
-    <div class="pws">You&rsquo;re seeing <strong>{FREE_ROWS} of {n_total} stocks</strong>.<br>Get full access to all results, filters, and weekly updates.</div>
-    <div class="pwf">
-      <span>&#10003; {n_total} S&P 500 stocks</span>
-      <span>&#10003; Graham / Lynch / Buffett</span>
-      <span>&#10003; Margin of Safety</span>
-      <span>&#10003; Mon &middot; Wed &middot; Fri updates</span>
-    </div>
-    <div class="pw-btns">
-      <a href="{PATREON_URL}" class="pwb-main" target="_blank" rel="noopener">&#128994; Get Portfolio Builder Access</a>
-      <a href="https://alert-invest-portfolio-tool.streamlit.app" class="pwb-login" target="_blank" rel="noopener">Already a member? Sign in</a>
-    </div>
-    <div class="pwn">Portfolio Builder membership on Patreon &middot; Cancel anytime</div>
-  </div>
-</div>
+<!-- paywall rendered inline by JS -->
 
 <div class="faq">
   <div class="faqh">How the Screener Works</div>
