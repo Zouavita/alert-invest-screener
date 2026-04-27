@@ -14,8 +14,15 @@ SCREENER_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAgh9VdS0Ox8xrD
 TOP10_CSV    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAgh9VdS0Ox8xrDf8XYCslQwCNuKfVRwJ9329YkEE7Fn5BtW4bkLrts19MnNjjkHbnp6twVB99Z21I/pub?gid=1532740227&single=true&output=csv"
 
 def fetch_csv(url):
-    r = requests.get(url, timeout=20); r.raise_for_status()
-    return list(csv.reader(io.StringIO(r.text)))
+    for attempt in range(3):
+        try:
+            r = requests.get(url, timeout=60)
+            r.raise_for_status()
+            return list(csv.reader(io.StringIO(r.text)))
+        except Exception as e:
+            if attempt == 2: raise
+            print(f"  Retry {attempt+1}/3 after error: {e}")
+            import time; time.sleep(5)
 
 def parse_screener(rows):
     hi = next((i for i,r in enumerate(rows) if any("Ticker" in str(c) for c in r)), None)
