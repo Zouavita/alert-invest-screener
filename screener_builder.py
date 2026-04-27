@@ -321,7 +321,7 @@ var PATREON_CAMPAIGN_ID = '""" + PATREON_CAMPAIGN_ID + """';
 var PATREON_TIER        = '""" + PATREON_TIER + """';
 var PATREON_JOIN_URL    = '""" + PATREON_JOIN_URL + """';
 var FREE_ROWS           = """ + str(5) + """;
-var N_TOTAL             = {n_total};
+var N_TOTAL             = """ + str(n_total) + """;
 
 var IS_MEMBER = false;
 var gP='all', gS='', gQ='';
