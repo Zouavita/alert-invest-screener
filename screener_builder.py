@@ -438,13 +438,35 @@ function updateAuthUI() {
 }
 
 // ── TABLE INIT ────────────────────────────────────────────────────────
+var PAGE_SIZE = 50;
+var visibleUpTo = PAGE_SIZE; // non-members see FREE_ROWS max anyway
+
 function initTable() {
+  renderRows();
+  renderPaywall();
+  updateCount();
+}
+
+function renderRows() {
   var rows = document.querySelectorAll('#tbody .sr');
   rows.forEach(function(r) {
     var idx = parseInt(r.dataset.idx);
-    r.style.display = (!IS_MEMBER && idx >= FREE_ROWS) ? 'none' : '';
+    var authOk  = IS_MEMBER || idx < FREE_ROWS;
+    var pageOk  = IS_MEMBER ? idx < visibleUpTo : true;
+    r.style.display = (authOk && pageOk) ? '' : 'none';
   });
-  renderPaywall();
+  // Show/hide load more button
+  var total = document.querySelectorAll('#tbody .sr').length;
+  var btn = document.getElementById('load-more-btn');
+  if (btn) {
+    btn.style.display = (IS_MEMBER && visibleUpTo < total) ? '' : 'none';
+    btn.textContent = 'Show next 50 (' + Math.min(visibleUpTo + PAGE_SIZE, total) + ' of ' + total + ' total)';
+  }
+}
+
+function loadMore() {
+  visibleUpTo += PAGE_SIZE;
+  renderRows();
   updateCount();
 }
 
@@ -499,7 +521,11 @@ function apply() {
     var secOk  = !gS || r.dataset.sec === gS;
     var srchOk = !gQ || r.dataset.tk.indexOf(gQ) !== -1 || r.dataset.co.indexOf(gQ) !== -1;
     var authOk = IS_MEMBER || idx < FREE_ROWS;
-    r.style.display = (philOk && secOk && srchOk && authOk) ? '' : 'none';
+    var pageOk = IS_MEMBER ? idx < visibleUpTo : true;
+    // When searching/filtering, show all matching for members
+    var searching = gP !== 'all' || gS !== '' || gQ !== '';
+    if (searching && IS_MEMBER) pageOk = true;
+    r.style.display = (philOk && secOk && srchOk && authOk && pageOk) ? '' : 'none';
   });
   updateCount();
   renderPaywall();
@@ -526,7 +552,7 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 """
 
-    return f"""<!-- wp:html -->
+    _html_before = f"""<!-- wp:html -->
 <script type="application/ld+json">{json.dumps(schema)}</script>
 <style>{CSS}</style>
 <div class="scr">
@@ -591,6 +617,9 @@ window.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <!-- paywall rendered inline by JS -->
+<div id="load-more-wrap" style="text-align:center;padding:12px;background:#fff;border:1px solid #d1d5db;border-top:none;border-radius:0 0 5px 5px;margin-top:-7px;margin-bottom:7px">
+  <button id="load-more-btn" onclick="loadMore()" style="display:none;background:#f9fafb;border:1px solid #d1d5db;border-radius:3px;padding:7px 20px;font-size:11px;font-weight:600;color:#374151;cursor:pointer;font-family:inherit">Show next 50</button>
+</div>
 
 <div class="faq">
   <div class="faqh">How the Screener Works</div>
@@ -601,8 +630,10 @@ window.addEventListener('DOMContentLoaded', function() {
 </div>
 <p class="disc">Not investment advice. Data from Financial Modeling Prep API. TTM metrics. &copy; <a href="{WP_URL}">Alert Invest</a></p>
 </div>
-<script>{JS}</script>
+<script>"""
+    _html_after = f"""</script>
 <!-- /wp:html -->"""
+    return _html_before + JS + _html_after
 
 
 def deploy_page(html, updated_at):
@@ -626,7 +657,8 @@ def deploy_page(html, updated_at):
         headers = {"Authorization": f"Basic {creds}"}
         print("  Auth: Basic (Application Password)")
     payload = {"title":"S&P 500 Value Stock Screener — Graham, Lynch & Buffett | Alert Invest",
-               "content":html,"status":"publish","slug":WP_SLUG}
+               "content":html,"status":"publish","slug":WP_SLUG,
+               "meta":{"_wp_page_template":"default"}}
     search = requests.get(f"{WP_URL}/wp-json/wp/v2/pages",params={"slug":WP_SLUG},headers=headers,timeout=15).json()
     if search and isinstance(search,list) and len(search)>0:
         pid=search[0]["id"]
