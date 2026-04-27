@@ -416,12 +416,25 @@ function fFaq(q){var a=q.nextElementSibling,ch=q.querySelector('.faqch'),open=a.
 
 
 def deploy_page(html, updated_at):
-    auth = requests.post(f"{WP_URL}/wp-json/jwt-auth/v1/token",
-                         json={"username":WP_USER,"password":WP_PASSWORD},timeout=15).json()
-    token = auth.get("token")
-    if not token:
-        print(f"  ✗ WP auth failed: {auth}"); return False
-    headers = {"Authorization":f"Bearer {token}"}
+    import base64
+    # Try JWT auth first, fall back to Basic Auth (Application Passwords)
+    token = None
+    try:
+        r = requests.post(f"{WP_URL}/wp-json/jwt-auth/v1/token",
+                          json={"username":WP_USER,"password":WP_PASSWORD},timeout=15)
+        if r.status_code == 200 and r.text.strip():
+            token = r.json().get("token")
+    except Exception as e:
+        print(f"  JWT auth error: {e}")
+
+    if token:
+        headers = {"Authorization": f"Bearer {token}"}
+        print("  Auth: JWT")
+    else:
+        # Fallback: Basic Auth with Application Password
+        creds = base64.b64encode(f"{WP_USER}:{WP_PASSWORD}".encode()).decode()
+        headers = {"Authorization": f"Basic {creds}"}
+        print("  Auth: Basic (Application Password)")
     payload = {"title":"S&P 500 Value Stock Screener — Graham, Lynch & Buffett | Alert Invest",
                "content":html,"status":"publish","slug":WP_SLUG}
     search = requests.get(f"{WP_URL}/wp-json/wp/v2/pages",params={"slug":WP_SLUG},headers=headers,timeout=15).json()
