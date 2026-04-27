@@ -302,81 +302,194 @@ table.t tbody tr:nth-child(even) td{background:#fafafa}
 @media(max-width:600px){.t10-featured{flex-direction:column;align-items:flex-start}.t10f-right{align-items:flex-start}table.t th:nth-child(n+6),table.t td:nth-child(n+6){display:none}}"""
 
     JS = """
-// ── AUTH CHECK ────────────────────────────────────────────────────────
-// Check for Patreon session token in URL (same as portfolio analyzer)
+// ── PATREON OAUTH CONFIG ──────────────────────────────────────────────
+var PATREON_CLIENT_ID   = '""" + PATREON_CLIENT_ID + """';
+var PATREON_REDIRECT    = '""" + PATREON_REDIRECT + """';
+var PATREON_CAMPAIGN_ID = '""" + PATREON_CAMPAIGN_ID + """';
+var PATREON_TIER        = '""" + PATREON_TIER + """';
+var PATREON_JOIN_URL    = '""" + PATREON_JOIN_URL + """';
+var FREE_ROWS           = """ + str(5) + """;
+var N_TOTAL             = {n_total};
+
 var IS_MEMBER = false;
-(function(){
+var gP='all', gS='', gQ='';
+
+// ── OAUTH FLOW ────────────────────────────────────────────────────────
+function patreonLogin() {
+  var state = Math.random().toString(36).substring(2);
+  localStorage.setItem('patreon_state', state);
+  var scope = encodeURIComponent('identity identity[email] identity.memberships');
+  var url = 'https://www.patreon.com/oauth2/authorize'
+    + '?response_type=code'
+    + '&client_id=' + PATREON_CLIENT_ID
+    + '&redirect_uri=' + encodeURIComponent(PATREON_REDIRECT)
+    + '&scope=' + scope
+    + '&state=' + state;
+  window.location.href = url;
+}
+
+function patreonLogout() {
+  localStorage.removeItem('patreon_member');
+  localStorage.removeItem('patreon_name');
+  IS_MEMBER = false;
+  updateAuthUI();
+  initTable();
+}
+
+// ── CHECK CACHED SESSION ──────────────────────────────────────────────
+function checkCachedSession() {
+  var cached = localStorage.getItem('patreon_member');
+  if (cached) {
+    try {
+      var d = JSON.parse(cached);
+      // Valid for 8 hours
+      if (d.expires && Date.now() < d.expires && d.isMember) {
+        IS_MEMBER = true;
+        return true;
+      }
+    } catch(e) {}
+    localStorage.removeItem('patreon_member');
+  }
+  return false;
+}
+
+// ── HANDLE OAUTH CALLBACK (code in URL) ───────────────────────────────
+function handleOAuthCallback() {
   var params = new URLSearchParams(window.location.search);
-  var sid = params.get('sid') || localStorage.getItem('ai_sid');
-  if(sid){ IS_MEMBER = true; localStorage.setItem('ai_sid', sid); }
-})();
+  var code  = params.get('code');
+  var state = params.get('state');
+  if (!code) return false;
 
-var FREE_ROWS = """ + str(5) + """;
-var PATREON_URL = \'""" + PATREON_URL + """\'
-var gP='all',gS='',gQ='',visibleCount=FREE_ROWS;
+  // Show loading state
+  showAuthLoading();
 
-function initTable(){
+  // We can't do server-side token exchange from pure JS (CORS).
+  // Use the Streamlit app as a proxy — same pattern as portfolio analyzer.
+  // Redirect to Streamlit with code, Streamlit verifies and redirects back with member=1
+  var proxyUrl = 'https://alert-invest-portfolio-tool.streamlit.app/'
+    + '?screener_code=' + encodeURIComponent(code)
+    + '&screener_redirect=' + encodeURIComponent(PATREON_REDIRECT)
+    + '&state=' + encodeURIComponent(state || '');
+  window.location.href = proxyUrl;
+  return true;
+}
+
+// ── HANDLE STREAMLIT CALLBACK (member param in URL) ───────────────────
+function handleStreamlitCallback() {
+  var params = new URLSearchParams(window.location.search);
+  var member = params.get('member');
+  var name   = params.get('name') || 'Member';
+  if (member === '1') {
+    IS_MEMBER = true;
+    localStorage.setItem('patreon_member', JSON.stringify({
+      isMember: true,
+      name: name,
+      expires: Date.now() + 8 * 60 * 60 * 1000
+    }));
+    localStorage.setItem('patreon_name', name);
+    // Clean URL
+    window.history.replaceState({}, '', PATREON_REDIRECT);
+    return true;
+  }
+  if (member === '0') {
+    // Logged in but not a member
+    showNotMember();
+    window.history.replaceState({}, '', PATREON_REDIRECT);
+    return true;
+  }
+  return false;
+}
+
+function showAuthLoading() {
+  var bar = document.getElementById('auth-bar');
+  if (bar) bar.innerHTML = '<span style="color:#6b7280;font-size:11px">Verifying Patreon membership&hellip;</span>';
+}
+
+function showNotMember() {
+  var bar = document.getElementById('auth-bar');
+  if (bar) bar.innerHTML = '<span style="color:#b91c1c;font-size:11px;font-weight:600">&#10007; Your Patreon account is not a Portfolio Builder member.</span>'
+    + ' <a href="' + PATREON_JOIN_URL + '" target="_blank" style="font-size:11px;font-weight:700;color:#2563eb">Upgrade &rarr;</a>'
+    + ' <button onclick="patreonLogout()" style="margin-left:8px;font-size:10px;color:#6b7280;background:none;border:none;cursor:pointer;font-family:inherit">Sign out</button>';
+}
+
+function updateAuthUI() {
+  var bar = document.getElementById('auth-bar');
+  if (!bar) return;
+  var name = localStorage.getItem('patreon_name') || 'Member';
+  if (IS_MEMBER) {
+    bar.innerHTML = '<span style="color:#15803d;font-size:11px;font-weight:700">&#10003; Portfolio Builder &mdash; ' + name + '</span>'
+      + ' <button onclick="patreonLogout()" style="margin-left:8px;font-size:10px;color:#6b7280;background:none;border:none;cursor:pointer;font-family:inherit">Sign out</button>';
+  } else {
+    bar.innerHTML = '<button onclick="patreonLogin()" style="display:inline-flex;align-items:center;gap:6px;background:#e85b46;color:#fff;border:none;border-radius:3px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">&#128994; Connect with Patreon</button>'
+      + ' <span style="font-size:10px;color:#9ca3af;margin-left:6px">or <a href="' + PATREON_JOIN_URL + '" target="_blank" style="color:#2563eb;font-weight:600">become a Portfolio Builder member</a></span>';
+  }
+}
+
+// ── TABLE INIT ────────────────────────────────────────────────────────
+function initTable() {
   var rows = document.querySelectorAll('#tbody .sr');
-  // Hide all rows beyond FREE_ROWS initially for non-members
-  rows.forEach(function(r){
+  rows.forEach(function(r) {
     var idx = parseInt(r.dataset.idx);
-    if(!IS_MEMBER && idx >= FREE_ROWS){
-      r.style.display = 'none';
-    }
+    r.style.display = (!IS_MEMBER && idx >= FREE_ROWS) ? 'none' : '';
   });
-  // Show paywall after FREE_ROWS-th visible row
   renderPaywall();
   updateCount();
 }
 
-function renderPaywall(){
+function updateCount() {
+  var shown = 0;
+  document.querySelectorAll('#tbody .sr').forEach(function(r) {
+    if (r.style.display !== 'none') shown++;
+  });
+  var el = document.getElementById('rcnt');
+  if (el) el.textContent = shown + ' result' + (shown !== 1 ? 's' : '');
+}
+
+function renderPaywall() {
   var existing = document.getElementById('inline-pw');
-  if(existing) existing.remove();
-  if(IS_MEMBER) return;
-  // Insert paywall after last visible row
+  if (existing) existing.remove();
+  if (IS_MEMBER) return;
+
   var rows = document.querySelectorAll('#tbody .sr');
   var lastVisible = null;
-  rows.forEach(function(r){
-    if(r.style.display !== 'none') lastVisible = r;
+  rows.forEach(function(r) {
+    if (r.style.display !== 'none') lastVisible = r;
   });
-  if(!lastVisible) return;
+  if (!lastVisible) return;
+
   var pw = document.createElement('tr');
   pw.id = 'inline-pw';
-  pw.innerHTML = '<td colspan="14"><div style="background:linear-gradient(to bottom,rgba(255,255,255,0),#fff 40%);height:60px;margin-bottom:0"></div>'
-    + '<div style="background:#fff;padding:24px;text-align:center;border-top:2px solid #e5e7eb">'
-    + '<div style="font-size:22px;margin-bottom:8px">&#128274;</div>'
+  pw.innerHTML = '<td colspan="14" style="padding:0">'
+    + '<div style="background:linear-gradient(to bottom,rgba(255,255,255,0) 0%,#fff 60%);height:50px"></div>'
+    + '<div style="background:#fff;padding:28px 20px;text-align:center;border-top:2px solid #e5e7eb">'
+    + '<div style="font-size:20px;margin-bottom:8px">&#128274;</div>'
     + '<div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:6px">Unlock the Full Screener</div>'
-    + '<div style="font-size:12px;color:#6b7280;margin-bottom:14px">You\'re seeing <strong>' + FREE_ROWS + ' of """ + str(0) + """ stocks</strong>. Get full access with Portfolio Builder membership.</div>'
+    + '<div style="font-size:12px;color:#6b7280;line-height:1.6;margin-bottom:16px">You&rsquo;re seeing <strong>' + FREE_ROWS + ' of ' + N_TOTAL + ' stocks</strong>.<br>Portfolio Builder members get full access to all results, filters and weekly updates.</div>'
     + '<div style="display:flex;flex-direction:column;align-items:center;gap:8px">'
-    + '<a href=\"' + PATREON_URL + '\" target=\"_blank\" style=\"display:inline-block;background:#2563eb;color:#fff;font-size:13px;font-weight:700;padding:10px 28px;border-radius:4px;text-decoration:none;width:280px\">&#128994; Get Portfolio Builder Access</a>'
-    + '<a href=\"https://alert-invest-portfolio-tool.streamlit.app\" target=\"_blank\" style=\"display:inline-block;background:#fff;color:#374151;font-size:12px;font-weight:600;padding:8px 28px;border-radius:4px;text-decoration:none;border:1px solid #d1d5db;width:280px\">Already a member? Sign in</a>'
+    + '<button onclick="patreonLogin()" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#e85b46;color:#fff;border:none;border-radius:4px;padding:11px 28px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;width:280px">&#128994; Connect with Patreon</button>'
+    + '<a href="' + PATREON_JOIN_URL + '" target="_blank" style="display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#374151;font-size:12px;font-weight:600;padding:9px 28px;border-radius:4px;text-decoration:none;border:1px solid #d1d5db;width:280px">Become a Portfolio Builder member &rarr;</a>'
     + '</div>'
-    + '<div style=\"font-size:10px;color:#9ca3af;margin-top:8px\">Portfolio Builder membership &middot; Cancel anytime</div>'
+    + '<div style="font-size:10px;color:#9ca3af;margin-top:10px">Portfolio Builder membership on Patreon &middot; Cancel anytime</div>'
     + '</div></td>';
   lastVisible.insertAdjacentElement('afterend', pw);
 }
 
-function apply(){
+function apply() {
   var rows = document.querySelectorAll('#tbody .sr');
-  var shown = 0;
-  rows.forEach(function(r){
+  rows.forEach(function(r) {
     var idx = parseInt(r.dataset.idx);
     var philOk = true;
-    if(gP==='g'&&r.dataset.g!=='true')philOk=false;
-    else if(gP==='l'&&r.dataset.l!=='true')philOk=false;
-    else if(gP==='b'&&r.dataset.b!=='true')philOk=false;
-    else if(gP==='p'&&r.dataset.p!=='true')philOk=false;
-    else if(gP==='a'&&r.dataset.a!=='true')philOk=false;
-    var secOk = !gS || r.dataset.sec === gS;
-    var srchOk = !gQ || r.dataset.tk.indexOf(gQ)!==-1 || r.dataset.co.indexOf(gQ)!==-1;
-    var filterOk = philOk && secOk && srchOk;
-    // Members see all; free users see only first FREE_ROWS
+    if (gP==='g'&&r.dataset.g!=='true') philOk=false;
+    else if (gP==='l'&&r.dataset.l!=='true') philOk=false;
+    else if (gP==='b'&&r.dataset.b!=='true') philOk=false;
+    else if (gP==='p'&&r.dataset.p!=='true') philOk=false;
+    else if (gP==='a'&&r.dataset.a!=='true') philOk=false;
+    var secOk  = !gS || r.dataset.sec === gS;
+    var srchOk = !gQ || r.dataset.tk.indexOf(gQ) !== -1 || r.dataset.co.indexOf(gQ) !== -1;
     var authOk = IS_MEMBER || idx < FREE_ROWS;
-    r.style.display = (filterOk && authOk) ? '' : 'none';
-    if(filterOk && authOk) shown++;
+    r.style.display = (philOk && secOk && srchOk && authOk) ? '' : 'none';
   });
-  var el = document.getElementById('rcnt');
-  if(el) el.textContent = shown + ' result' + (shown!==1?'s':'');
+  updateCount();
   renderPaywall();
 }
 
@@ -384,7 +497,21 @@ function fPhil(btn,v){gP=v;document.querySelectorAll('.chip[onclick*="fPhil"]').
 function fSec(btn,v){gS=v;document.querySelectorAll('.chip[onclick*="fSec"]').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');apply();}
 function fSrch(v){gQ=v.toLowerCase().trim();apply();}
 function fFaq(q){var a=q.nextElementSibling,ch=q.querySelector('.faqch'),open=a.classList.contains('open');a.classList.toggle('open',!open);ch.style.transform=open?'':'rotate(180deg)';a.style.maxHeight=open?'0':(a.scrollHeight+20)+'px';}
-window.addEventListener('DOMContentLoaded', initTable);
+
+// ── BOOT ──────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
+  // Priority order: Streamlit callback > OAuth callback > cached session
+  if (handleStreamlitCallback()) {
+    updateAuthUI();
+    initTable();
+  } else if (handleOAuthCallback()) {
+    // Redirecting to Streamlit proxy — do nothing
+  } else {
+    checkCachedSession();
+    updateAuthUI();
+    initTable();
+  }
+});
 """
 
     return f"""<!-- wp:html -->
@@ -394,6 +521,7 @@ window.addEventListener('DOMContentLoaded', initTable);
 
 <div class="tb">
   <div class="tbb">Alert<em>Invest</em> <span style="font-size:11px;font-weight:400;color:#6b7280">/ S&P 500 Screener</span></div>
+  <div id="auth-bar" style="display:flex;align-items:center;gap:6px"></div>
   <div class="tbst">
     <div class="tbsi"><span class="tbn">{n_total}</span><span class="tbl">Stocks</span></div>
     <div class="tbsi"><span class="tbn g">{n_graham}</span><span class="tbl">Graham</span></div>
