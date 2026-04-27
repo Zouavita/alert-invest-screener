@@ -679,9 +679,16 @@ function scrFaq(btn) {{
 
 # ─── WORDPRESS DEPLOY ─────────────────────────────────────────────────────────
 def deploy_page(html_content: str, updated_at: str) -> bool:
-    import base64
-    credentials = base64.b64encode(f"{WP_USER}:{WP_PASSWORD}".encode()).decode()
-    headers = {"Authorization": f"Basic {credentials}"}
+    auth = requests.post(
+        f"{WP_URL}/wp-json/jwt-auth/v1/token",
+        json={"username": WP_USER, "password": WP_PASSWORD},
+        timeout=15
+    ).json()
+    token = auth.get("token")
+    if not token:
+        print(f"  ✗ WP auth failed: {auth}")
+        return False
+    headers = {"Authorization": f"Bearer {token}"}
     title   = "S&P 500 Value Stock Screener — Graham, Lynch & Buffett | Alert Invest"
 
     payload = {
@@ -691,7 +698,7 @@ def deploy_page(html_content: str, updated_at: str) -> bool:
         "slug":    WP_SLUG,
     }
 
-    # Find existing page
+    # Find existing page — search without author filter (same as gem.py)
     search = requests.get(
         f"{WP_URL}/wp-json/wp/v2/pages",
         params={"slug": WP_SLUG},
@@ -700,19 +707,23 @@ def deploy_page(html_content: str, updated_at: str) -> bool:
 
     if search and isinstance(search, list) and len(search) > 0:
         pid = search[0]["id"]
-        r   = requests.post(f"{WP_URL}/wp-json/wp/v2/pages/{pid}",
-                            headers=headers, json=payload, timeout=120)
+        res = requests.post(
+            f"{WP_URL}/wp-json/wp/v2/pages/{pid}",
+            headers=headers, json=payload, timeout=120
+        )
         action = "Updated"
     else:
-        r = requests.post(f"{WP_URL}/wp-json/wp/v2/pages",
-                          headers=headers, json=payload, timeout=120)
+        res = requests.post(
+            f"{WP_URL}/wp-json/wp/v2/pages",
+            headers=headers, json=payload, timeout=120
+        )
         action = "Created"
 
-    if r.status_code in [200, 201]:
+    if res.status_code in [200, 201]:
         print(f"  ✅ {action}: {WP_URL}/{WP_SLUG}/")
         return True
     else:
-        print(f"  ✗ WP error {r.status_code}: {r.text[:200]}")
+        print(f"  ✗ WP error {res.status_code}: {res.text[:300]}")
         return False
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
