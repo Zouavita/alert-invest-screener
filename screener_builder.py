@@ -7,17 +7,19 @@ WP_URL      = "https://alert-invest.com"
 WP_USER     = os.environ.get("WP_USER", "")
 WP_PASSWORD = os.environ.get("WP_PASSWORD", "")
 WP_SLUG     = "stock-screener"
-FREE_ROWS   = 5  # rows visible before paywall
-PATREON_URL          = "https://www.patreon.com/cw/AlertInvest/membership"
-PATREON_CLIENT_ID    = "LOmI5CCfm8qswJK2JuO-cmVfeN2HiE3S0SneCiICAztq7jH4fWgDfpYbFkzn05yv"
-PATREON_CAMPAIGN_ID  = "14741872"
-PATREON_REDIRECT     = "https://alert-invest.com/stock-screener/"
-PATREON_TIER         = "Portfolio Builder"
-PATREON_JOIN_URL     = "https://www.patreon.com/cw/AlertInvest/membership"
+FREE_ROWS    = 5
+GOOGLE_ROWS  = 20
+
+PATREON_CLIENT_ID   = "LOmI5CCfm8qswJK2JuO-cmVfeN2HiE3S0SneCiICAztq7jH4fWgDfpYbFkzn05yv"
+PATREON_CAMPAIGN_ID = "14741872"
+PATREON_REDIRECT    = "https://alert-invest.com/stock-screener/"
+PATREON_TIER        = "Portfolio Builder"
+PATREON_JOIN_URL    = "https://www.patreon.com/cw/AlertInvest/membership"
 
 SCREENER_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAgh9VdS0Ox8xrDf8XYCslQwCNuKfVRwJ9329YkEE7Fn5BtW4bkLrts19MnNjjkHbnp6twVB99Z21I/pub?gid=310948557&single=true&output=csv"
 TOP10_CSV    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAgh9VdS0Ox8xrDf8XYCslQwCNuKfVRwJ9329YkEE7Fn5BtW4bkLrts19MnNjjkHbnp6twVB99Z21I/pub?gid=1532740227&single=true&output=csv"
 
+# ─────────────────────────────────────────────────────────────────────
 def fetch_csv(url):
     for attempt in range(3):
         try:
@@ -54,17 +56,17 @@ def parse_top10(rows):
             d["Ticker"] = tk; out.append(d)
     return out[:10]
 
-SC = {"Technology":"#2563eb","Communication Services":"#7c3aed","Healthcare":"#059669",
-      "Financials":"#d97706","Consumer Cyclical":"#ea580c","Consumer Defensive":"#65a30d",
-      "Industrials":"#4f46e5","Energy":"#dc2626","Real Estate":"#0891b2",
-      "Basic Materials":"#92400e","Utilities":"#0284c7","Insurance":"#b45309"}
+SC = {
+    "Technology":"#2563eb","Communication Services":"#7c3aed","Healthcare":"#059669",
+    "Financials":"#d97706","Consumer Cyclical":"#ea580c","Consumer Defensive":"#65a30d",
+    "Industrials":"#4f46e5","Energy":"#dc2626","Real Estate":"#0891b2",
+    "Basic Materials":"#92400e","Utilities":"#0284c7","Insurance":"#b45309"
+}
 def sc(s): return SC.get(s,"#64748b")
 
 def clean_signals(raw):
-    """Convert Google Sheet signal string (may have emoji) to clean HTML badges."""
     if not raw: return ""
-    # Normalize: remove broken encoding artifacts, normalize separators
-    raw = re.sub(r'[^\x00-\x7F]', ' ', raw)  # strip non-ASCII
+    raw = re.sub(r'[^\x00-\x7F]', ' ', raw)
     raw = re.sub(r'\s*\|\s*', '|', raw.strip())
     parts = [p.strip() for p in raw.split("|") if p.strip()]
     out = []
@@ -72,15 +74,15 @@ def clean_signals(raw):
         if not p: continue
         if "Pass" in p or "PASS" in p:
             out.append('<span class="sb-pass">PASS ALL</span>')
-        elif "Graham" in p and ("~" not in p):
+        elif "Graham" in p and "~" not in p:
             out.append('<span class="sb-g">Graham &#10003;</span>')
         elif "Graham" in p:
             out.append('<span class="sb-gn">Graham ~</span>')
-        elif "Lynch" in p and ("~" not in p):
+        elif "Lynch" in p and "~" not in p:
             out.append('<span class="sb-l">Lynch &#10003;</span>')
         elif "Lynch" in p:
             out.append('<span class="sb-ln">Lynch ~</span>')
-        elif "Buffett" in p and ("~" not in p):
+        elif "Buffett" in p and "~" not in p:
             out.append('<span class="sb-b">Buffett &#10003;</span>')
         elif "Buffett" in p:
             out.append('<span class="sb-bn">Buffett ~</span>')
@@ -108,6 +110,7 @@ def num(v, d=1):
     try: return f"{float(v.strip().replace('%','')):.{d}f}"
     except: return "&#8212;"
 
+# ─────────────────────────────────────────────────────────────────────
 def build_html(stocks, top10, updated_at):
     sectors   = sorted(set(s.get("Sector","").strip() for s in stocks if s.get("Sector","").strip()))
     n_total   = len(stocks)
@@ -116,15 +119,13 @@ def build_html(stocks, top10, updated_at):
     n_buffett = sum(1 for s in stocks if s.get("Buffett Screen")=="Candidate")
     n_pass    = sum(1 for s in stocks if s.get("Pass All?")=="PASS")
 
-    # ── TOP 1 FEATURED + OTHERS COMPACT ─────────────────────────────────────
+    # TOP 10
     t10_html = ""
     if top10:
-        # Featured #1
         t = top10[0]
-        tk = t.get("Ticker",""); co = t.get("Company",""); sec = t.get("Sector","")
-        sigs_raw = t.get("Signals",""); score = t.get("Score",""); mos_v = t.get("Margin of Safety","—")
-        c = sc(sec)
-        sigs_html = clean_signals(sigs_raw)
+        tk=t.get("Ticker",""); co=t.get("Company",""); sec=t.get("Sector","")
+        sigs_raw=t.get("Signals",""); score=t.get("Score",""); mos_v=t.get("Margin of Safety","—")
+        c=sc(sec); sigs_html=clean_signals(sigs_raw)
         t10_html += f"""<div class="t10-featured">
   <div class="t10f-left">
     <div class="t10f-badge">&#127942; #1 This Week</div>
@@ -140,15 +141,12 @@ def build_html(stocks, top10, updated_at):
     </div>
   </div>
 </div>"""
-        # Others #2-#10 compact list — #3+ blurred for free users
         t10_html += '<div class="t10-rest">'
         for i, t in enumerate(top10[1:], 2):
-            tk2 = re.sub(r"[^A-Z0-9]", "", t.get("Ticker","").encode("ascii","ignore").decode("ascii").upper())
-            co2 = t.get("Company","")[:20]
-            sec2 = t.get("Sector",""); score2 = t.get("Score","")
-            sigs2 = clean_signals(t.get("Signals",""))
-            c2 = sc(sec2)
-            blur = " t10r-locked" if i >= 3 else ""
+            tk2=re.sub(r"[^A-Z0-9]","",t.get("Ticker","").encode("ascii","ignore").decode("ascii").upper())
+            co2=t.get("Company","")[:20]; sec2=t.get("Sector",""); score2=t.get("Score","")
+            sigs2=clean_signals(t.get("Signals","")); c2=sc(sec2)
+            blur=" t10r-locked" if i>=3 else ""
             t10_html += (
                 f'<div class="t10r-row{blur}">'
                 f'<span class="t10r-rank">#{i}</span>'
@@ -161,31 +159,30 @@ def build_html(stocks, top10, updated_at):
             )
         t10_html += '</div>'
 
-    # ── SECTOR PILLS ─────────────────────────────────────────────────────────
+    # SECTOR PILLS
     pills = '<button class="chip on" onclick="fSec(this,\'\')" style="--cc:#374151">All</button>'
     for sec in sectors:
-        c = sc(sec)
+        c=sc(sec)
         pills += f'<button class="chip" onclick="fSec(this,\'{sec}\')" style="--cc:{c}">{sec}</button>'
 
-    # ── TABLE ROWS ───────────────────────────────────────────────────────────
-    rows = ""
+    # TABLE ROWS
+    rows_html = ""
     for i, s in enumerate(stocks):
         tk=s.get("Ticker",""); co=s.get("Company",""); sec=s.get("Sector","")
         pe=s.get("P/E (Live)",""); peg=s.get("PEG (Live)",""); de=s.get("Debt/Equity","")
         roic=s.get("ROIC",""); gr=s.get("Graham Screen",""); ly=s.get("Lynch Screen","")
         bu=s.get("Buffett Screen",""); pa=s.get("Pass All?",""); ms=s.get("Margin of Safety","")
         rg=s.get("Rev Gr%",""); eg=s.get("EPS Growth",""); om=s.get("Op. Margin","")
-        c = sc(sec)
+        c=sc(sec)
         dg="true" if gr=="Candidate" else "false"
         dl="true" if ly=="Candidate" else "false"
         db="true" if bu=="Candidate" else "false"
         dp="true" if pa=="PASS" else "false"
         da="true" if (gr in("Candidate","Near Miss") or ly in("Candidate","Near Miss")
                       or bu in("Candidate","Near Miss") or pa=="PASS") else "false"
-        # All rows included — JS controls visibility based on FREE_ROWS and auth
-        rows += (
-            f'<tr class="sr" data-idx="{i}" data-tk="{tk.lower()}" data-co="{co.lower()}" data-sec="{sec}" '
-            f'data-g="{dg}" data-l="{dl}" data-b="{db}" data-p="{dp}" data-a="{da}">'
+        rows_html += (
+            f'<tr class="sr" data-idx="{i}" data-tk="{tk.lower()}" data-co="{co.lower()}" '
+            f'data-sec="{sec}" data-g="{dg}" data-l="{dl}" data-b="{db}" data-p="{dp}" data-a="{da}">'
             f'<td class="tds"><span class="stk">{tk}</span><span class="sco">{co[:24]}</span></td>'
             f'<td><span style="background:{c}15;color:{c};font-size:9px;font-weight:700;'
             f'padding:2px 5px;border-radius:2px;white-space:nowrap">{sec}</span></td>'
@@ -196,17 +193,18 @@ def build_html(stocks, top10, updated_at):
             f'<td class="tn">{pct(eg)}</td><td class="tn">{num(om,1)}%</td></tr>'
         )
 
-    schema = {"@context":"https://schema.org","@type":"WebPage",
-              "name":"S&P 500 Value Stock Screener — Graham, Lynch & Buffett | Alert Invest",
-              "description":f"Screen {n_total} S&P 500 stocks using Graham, Lynch and Buffett criteria. Live P/E, PEG, ROIC and Margin of Safety.",
-              "url":f"{WP_URL}/stock-screener/","dateModified":updated_at,
-              "publisher":{"@type":"Organization","name":"Alert Invest","url":WP_URL}}
+    schema = {
+        "@context":"https://schema.org","@type":"WebPage",
+        "name":"S&P 500 Value Stock Screener — Graham, Lynch & Buffett | Alert Invest",
+        "description":f"Screen {n_total} S&P 500 stocks using Graham, Lynch and Buffett criteria.",
+        "url":f"{WP_URL}/stock-screener/","dateModified":updated_at,
+        "publisher":{"@type":"Organization","name":"Alert Invest","url":WP_URL}
+    }
 
     CSS = """*{box-sizing:border-box;margin:0;padding:0}
 .entry-title,.page-title,h1.title{display:none!important}
 .scr{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;font-size:12px;color:#111827;background:#eef0f3;min-height:100vh;padding:10px}
 .scr a{color:#1d4ed8;text-decoration:none}.scr a:hover{text-decoration:underline}
-/* TOPBAR */
 .tb{background:#fff;border:1px solid #d1d5db;border-radius:5px;padding:9px 14px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .tbb{font-size:14px;font-weight:800;color:#0f172a;letter-spacing:-.4px}.tbb em{color:#2563eb;font-style:normal}
 .tbst{display:flex;gap:1px;background:#e5e7eb;border-radius:4px;overflow:hidden}
@@ -215,6 +213,22 @@ def build_html(stocks, top10, updated_at):
 .tbl{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280}
 .tbn.g{color:#16a34a}.tbn.b{color:#2563eb}.tbn.p{color:#7c3aed}.tbn.y{color:#d97706}
 .tbu{font-size:10px;color:#9ca3af;border:1px solid #e5e7eb;border-radius:3px;padding:3px 8px}
+/* AUTH BAR */
+.auth-bar{background:#fff;border:1px solid #d1d5db;border-radius:5px;padding:9px 14px;margin-bottom:7px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:42px}
+.tier-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:2px;white-space:nowrap}
+.tier-anon{background:#f3f4f6;color:#6b7280}
+.tier-google{background:#dbeafe;color:#1d4ed8}
+.tier-patreon{background:#dcfce7;color:#15803d}
+.auth-name{font-size:11px;color:#374151;font-weight:600}
+.auth-nudge{font-size:10px;color:#6b7280}
+.auth-nudge strong{color:#111827}
+.auth-nudge a{color:#e85b46;font-weight:700}
+.auth-actions{margin-left:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.btn-google{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:3px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn-google:hover{background:#f9fafb}
+.btn-patreon{display:inline-flex;align-items:center;gap:6px;background:#e85b46;color:#fff;border:none;border-radius:3px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn-signout{background:none;border:none;font-size:10px;color:#9ca3af;cursor:pointer;font-family:inherit;padding:2px 0}
+.btn-signout:hover{color:#374151}
 /* FILTERS */
 .fb{background:#fff;border:1px solid #d1d5db;border-radius:5px;padding:8px 12px;margin-bottom:7px}
 .fr{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
@@ -233,7 +247,6 @@ def build_html(stocks, top10, updated_at):
 .t10-hdr{background:#0f172a;padding:7px 12px;display:flex;align-items:center;gap:10px}
 .t10-hdr-t{font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em}
 .t10-hdr-s{font-size:10px;color:rgba(255,255,255,.4)}
-/* Featured #1 */
 .t10-featured{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 16px;border-bottom:2px solid #e5e7eb;background:linear-gradient(135deg,#f8fafc,#fff)}
 .t10f-left{display:flex;flex-direction:column;gap:5px}
 .t10f-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#d97706;background:#fef3c7;padding:2px 8px;border-radius:2px;display:inline-block;width:fit-content}
@@ -245,7 +258,6 @@ def build_html(stocks, top10, updated_at):
 .t10f-meta{display:flex;align-items:center;gap:10px}
 .t10f-score{font-size:13px;font-weight:800;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;padding:3px 10px;border-radius:3px}
 .t10f-mos{font-size:11px;font-weight:700;color:#2563eb}
-/* Signal badges for Top 10 */
 .sb-pass{background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;white-space:nowrap}
 .sb-g{background:#dcfce7;color:#15803d;font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;white-space:nowrap}
 .sb-gn{background:#fef9c3;color:#92400e;font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;white-space:nowrap}
@@ -253,7 +265,6 @@ def build_html(stocks, top10, updated_at):
 .sb-ln{background:#fef9c3;color:#92400e;font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;white-space:nowrap}
 .sb-b{background:#f3e8ff;color:#7c3aed;font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;white-space:nowrap}
 .sb-bn{background:#fef9c3;color:#92400e;font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;white-space:nowrap}
-/* Rest list #2-10 */
 .t10-rest{display:flex;flex-direction:column}
 .t10r-row{display:flex;align-items:center;gap:8px;padding:6px 16px;border-bottom:1px solid #f3f4f6;transition:background .1s}
 .t10r-row:last-child{border-bottom:none}
@@ -284,22 +295,15 @@ table.t tbody tr:nth-child(even) td{background:#fafafa}
 .sg{background:#dcfce7;color:#15803d}.sn{background:#fef9c3;color:#92400e}
 .sp{background:#dbeafe;color:#1d4ed8}.sf{background:#f3f4f6;color:#d1d5db}.s0{color:#e5e7eb}
 .mos-v{font-size:10px;font-weight:700;color:#2563eb}
-/* LOCKED */
-.locked td{filter:blur(5px);user-select:none;pointer-events:none;opacity:.6}
 /* PAYWALL */
-.pw{position:relative;margin-top:-80px;z-index:10;padding:0 12px 10px}
-.pwc{background:#fff;border:1px solid #d1d5db;border-radius:10px;padding:32px 28px;text-align:center;max-width:500px;margin:0 auto;box-shadow:0 8px 40px rgba(0,0,0,.12)}
-.pwl{font-size:26px;margin-bottom:10px}
-.pwt{font-size:16px;font-weight:800;color:#0f172a;margin-bottom:8px}
-.pws{font-size:12px;color:#6b7280;line-height:1.7;margin-bottom:16px}
-.pwf{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-bottom:20px}
-.pwf span{background:#eff6ff;color:#2563eb;font-size:10px;font-weight:700;padding:3px 10px;border-radius:2px}
+.pw-row td{padding:0}
+.pw-gradient{background:linear-gradient(to bottom,rgba(255,255,255,0) 0%,#fff 60%);height:50px}
+.pw-box{background:#fff;padding:28px 20px;text-align:center;border-top:2px solid #e5e7eb}
+.pw-icon{font-size:20px;margin-bottom:8px}
+.pw-title{font-size:15px;font-weight:800;color:#0f172a;margin-bottom:6px}
+.pw-sub{font-size:12px;color:#6b7280;line-height:1.6;margin-bottom:16px}
 .pw-btns{display:flex;flex-direction:column;align-items:center;gap:8px}
-.pwb-main{display:inline-block;background:#2563eb;color:#fff;font-size:13px;font-weight:700;padding:10px 28px;border-radius:4px;text-decoration:none;width:100%;max-width:280px}
-.pwb-main:hover{background:#1d4ed8;color:#fff;text-decoration:none}
-.pwb-login{display:inline-block;background:#fff;color:#374151;font-size:12px;font-weight:600;padding:8px 28px;border-radius:4px;text-decoration:none;border:1px solid #d1d5db;width:100%;max-width:280px}
-.pwb-login:hover{background:#f9fafb;color:#111827;text-decoration:none}
-.pwn{font-size:10px;color:#9ca3af;margin-top:8px}
+.pw-note{font-size:10px;color:#9ca3af;margin-top:10px}
 /* FAQ */
 .faq{margin-top:8px;background:#fff;border:1px solid #d1d5db;border-radius:5px;overflow:hidden}
 .faqh{padding:7px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em}
@@ -311,255 +315,367 @@ table.t tbody tr:nth-child(even) td{background:#fafafa}
 .faqa.open{opacity:1}.faqai{padding:4px 12px 10px;font-size:11px;line-height:1.75;color:#6b7280}
 .disc{font-size:10px;color:#9ca3af;margin-top:8px;text-align:center;line-height:1.65;padding:6px}
 @media(max-width:900px){table.t th:nth-child(n+9),table.t td:nth-child(n+9){display:none}}
-@media(max-width:600px){.t10-featured{flex-direction:column;align-items:flex-start}.t10f-right{align-items:flex-start}table.t th:nth-child(n+6),table.t td:nth-child(n+6){display:none}}"""
+@media(max-width:600px){.t10-featured{flex-direction:column;align-items:flex-start}.t10f-right{align-items:flex-start}table.t th:nth-child(n+6),table.t td:nth-child(n+6){display:none}.auth-actions{margin-left:0}}"""
+
+    GOOGLE_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>'
 
     JS = """
-// ── PATREON OAUTH CONFIG ──────────────────────────────────────────────
-var PATREON_CLIENT_ID   = '""" + PATREON_CLIENT_ID + """';
-var PATREON_REDIRECT    = '""" + PATREON_REDIRECT + """';
-var PATREON_CAMPAIGN_ID = '""" + PATREON_CAMPAIGN_ID + """';
-var PATREON_TIER        = '""" + PATREON_TIER + """';
-var PATREON_JOIN_URL    = '""" + PATREON_JOIN_URL + """';
-var FREE_ROWS           = """ + str(5) + """;
-var N_TOTAL             = """ + str(n_total) + """;
+// ── FIREBASE CONFIG — replace with your values ────────────────────────
+var FB_CFG = {
+  apiKey: "AIzaSyBnz1S5v4FYX7fYo6RF42E4ALmpvtpEu9M",
+  authDomain: "saas-portfolio-6bbc8.firebaseapp.com",
+  projectId: "saas-portfolio-6bbc8",
+  storageBucket: "saas-portfolio-6bbc8.firebasestorage.app",
+  messagingSenderId: "124296076295",
+  appId: "1:124296076295:web:32ee053bb6e98fea455ea2",
+  measurementId: "G-D5QC7Z17PV"
+};
 
-var IS_MEMBER = false;
+// ── CONSTANTS ─────────────────────────────────────────────────────────
+var PATREON_CLIENT_ID = '""" + PATREON_CLIENT_ID + """';
+var PATREON_REDIRECT  = '""" + PATREON_REDIRECT + """';
+var PATREON_JOIN_URL  = '""" + PATREON_JOIN_URL + """';
+var FREE_ROWS         = """ + str(FREE_ROWS) + """;
+var GOOGLE_ROWS       = """ + str(GOOGLE_ROWS) + """;
+var N_TOTAL           = """ + str(n_total) + """;
+var PAGE_SIZE         = 50;
+
+// ── STATE ─────────────────────────────────────────────────────────────
+var AUTH_LEVEL  = 'anon';  // 'anon' | 'google' | 'patreon'
+var FB_USER     = null;
+var visibleUpTo = PAGE_SIZE;
 var gP='all', gS='', gQ='';
 
-// ── OAUTH FLOW ────────────────────────────────────────────────────────
+// ── FIREBASE ──────────────────────────────────────────────────────────
+function initFirebase() {
+  if (typeof firebase === 'undefined') { updateAuthUI(); initTable(); return; }
+  if (!firebase.apps.length) firebase.initializeApp(FB_CFG);
+  var auth = firebase.auth();
+  auth.onAuthStateChanged(function(user) {
+    FB_USER = user;
+    if (user && AUTH_LEVEL !== 'patreon') {
+      AUTH_LEVEL = 'google';
+      saveLocalGoogle(user);
+      writeUserToFirestore(user);
+    } else if (!user && AUTH_LEVEL === 'google') {
+      AUTH_LEVEL = 'anon';
+    }
+    updateAuthUI();
+    initTable();
+  });
+}
+
+function googleLogin() {
+  if (typeof firebase === 'undefined') return;
+  var provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope('email');
+  firebase.auth().signInWithPopup(provider).catch(function(e) {
+    console.error('Google login error:', e.message);
+  });
+}
+
+function googleLogout() {
+  if (typeof firebase === 'undefined') return;
+  firebase.auth().signOut().then(function() {
+    localStorage.removeItem('ai_gu');
+    FB_USER    = null;
+    AUTH_LEVEL = checkPatreonLocal() ? 'patreon' : 'anon';
+    updateAuthUI();
+    initTable();
+  });
+}
+
+function writeUserToFirestore(user) {
+  if (typeof firebase === 'undefined' || !firebase.firestore) return;
+  var db = firebase.firestore();
+  db.collection('screener_users').doc(user.uid).set({
+    uid:       user.uid,
+    email:     user.email,
+    name:      user.displayName || '',
+    photo:     user.photoURL    || '',
+    lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
+    firstSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    source:    'screener',
+    level:     'google'
+  }, { merge: true });
+  // merge:true ensures firstSeen is only written on first login
+  // lastSeen updates on every login — use this to track activity
+}
+
+// ── LOCAL SESSION HELPERS ─────────────────────────────────────────────
+function saveLocalGoogle(user) {
+  localStorage.setItem('ai_gu', JSON.stringify({
+    email: user.email,
+    name:  user.displayName,
+    exp:   Date.now() + 8*60*60*1000
+  }));
+}
+
+function checkLocalGoogle() {
+  try {
+    var d = JSON.parse(localStorage.getItem('ai_gu') || 'null');
+    return d && Date.now() < d.exp;
+  } catch(e) { return false; }
+}
+
+function saveLocalPatreon(name) {
+  localStorage.setItem('ai_pm', JSON.stringify({
+    name: name,
+    exp:  Date.now() + 8*60*60*1000
+  }));
+}
+
+function checkPatreonLocal() {
+  try {
+    var d = JSON.parse(localStorage.getItem('ai_pm') || 'null');
+    return d && Date.now() < d.exp;
+  } catch(e) { return false; }
+}
+
+function getPatreonName() {
+  try { return JSON.parse(localStorage.getItem('ai_pm')).name || 'Member'; }
+  catch(e) { return 'Member'; }
+}
+
+function getGoogleName() {
+  try { return JSON.parse(localStorage.getItem('ai_gu')).name || 'User'; }
+  catch(e) { return FB_USER ? (FB_USER.displayName || FB_USER.email) : 'User'; }
+}
+
+// ── PATREON ───────────────────────────────────────────────────────────
 function patreonLogin() {
   var state = Math.random().toString(36).substring(2);
-  localStorage.setItem('patreon_state', state);
-  var scope = encodeURIComponent('identity identity[email] identity.memberships');
-  var url = 'https://www.patreon.com/oauth2/authorize'
+  localStorage.setItem('pt_state', state);
+  window.location.href = 'https://www.patreon.com/oauth2/authorize'
     + '?response_type=code'
     + '&client_id=' + PATREON_CLIENT_ID
     + '&redirect_uri=' + encodeURIComponent(PATREON_REDIRECT)
-    + '&scope=' + scope
+    + '&scope=' + encodeURIComponent('identity identity[email] identity.memberships')
     + '&state=' + state;
-  window.location.href = url;
 }
 
 function patreonLogout() {
-  localStorage.removeItem('patreon_member');
-  localStorage.removeItem('patreon_name');
-  IS_MEMBER = false;
+  localStorage.removeItem('ai_pm');
+  AUTH_LEVEL = FB_USER ? 'google' : (checkLocalGoogle() ? 'google' : 'anon');
   updateAuthUI();
   initTable();
 }
 
-// ── CHECK CACHED SESSION ──────────────────────────────────────────────
-function checkCachedSession() {
-  var cached = localStorage.getItem('patreon_member');
-  if (cached) {
-    try {
-      var d = JSON.parse(cached);
-      // Valid for 8 hours
-      if (d.expires && Date.now() < d.expires && d.isMember) {
-        IS_MEMBER = true;
-        return true;
+function handleStreamlitCallback() {
+  var p = new URLSearchParams(window.location.search);
+  var member = p.get('member');
+  if (!member) return false;
+  if (member === '1') {
+    AUTH_LEVEL = 'patreon';
+    saveLocalPatreon(p.get('name') || 'Member');
+    // Also update Firestore if Google user is signed in
+    if (FB_USER) {
+      if (typeof firebase !== 'undefined' && firebase.firestore) {
+        firebase.firestore().collection('screener_users').doc(FB_USER.uid).set(
+          { level: 'patreon', patreonUpgraded: firebase.firestore.FieldValue.serverTimestamp() },
+          { merge: true }
+        );
       }
-    } catch(e) {}
-    localStorage.removeItem('patreon_member');
+    }
+  } else if (member === '0') {
+    showNotPatreonMember();
   }
-  return false;
-}
-
-// ── HANDLE OAUTH CALLBACK (code in URL) ───────────────────────────────
-function handleOAuthCallback() {
-  var params = new URLSearchParams(window.location.search);
-  var code  = params.get('code');
-  var state = params.get('state');
-  if (!code) return false;
-
-  // Show loading state
-  showAuthLoading();
-
-  // We can't do server-side token exchange from pure JS (CORS).
-  // Use the Streamlit app as a proxy — same pattern as portfolio analyzer.
-  // Redirect to Streamlit with code, Streamlit verifies and redirects back with member=1
-  var proxyUrl = 'https://alert-invest-portfolio-tool.streamlit.app/'
-    + '?screener_code=' + encodeURIComponent(code)
-    + '&screener_redirect=' + encodeURIComponent(PATREON_REDIRECT)
-    + '&state=' + encodeURIComponent(state || '');
-  window.location.href = proxyUrl;
+  window.history.replaceState({}, '', PATREON_REDIRECT);
   return true;
 }
 
-// ── HANDLE STREAMLIT CALLBACK (member param in URL) ───────────────────
-function handleStreamlitCallback() {
-  var params = new URLSearchParams(window.location.search);
-  var member = params.get('member');
-  var name   = params.get('name') || 'Member';
-  if (member === '1') {
-    IS_MEMBER = true;
-    localStorage.setItem('patreon_member', JSON.stringify({
-      isMember: true,
-      name: name,
-      expires: Date.now() + 8 * 60 * 60 * 1000
-    }));
-    localStorage.setItem('patreon_name', name);
-    // Clean URL
-    window.history.replaceState({}, '', PATREON_REDIRECT);
-    return true;
-  }
-  if (member === '0') {
-    // Logged in but not a member
-    showNotMember();
-    window.history.replaceState({}, '', PATREON_REDIRECT);
-    return true;
-  }
-  return false;
+function handleOAuthCallback() {
+  var p = new URLSearchParams(window.location.search);
+  var code = p.get('code');
+  if (!code) return false;
+  window.location.href = 'https://alert-invest-portfolio-tool.streamlit.app/'
+    + '?screener_code=' + encodeURIComponent(code)
+    + '&screener_redirect=' + encodeURIComponent(PATREON_REDIRECT)
+    + '&state=' + encodeURIComponent(p.get('state') || '');
+  return true;
 }
 
-function showAuthLoading() {
-  var bar = document.getElementById('auth-bar');
-  if (bar) bar.innerHTML = '<span style="color:#6b7280;font-size:11px">Verifying Patreon membership&hellip;</span>';
-}
-
-function showNotMember() {
-  var bar = document.getElementById('auth-bar');
-  if (bar) bar.innerHTML = '<span style="color:#b91c1c;font-size:11px;font-weight:600">&#10007; Your Patreon account is not a Portfolio Builder member.</span>'
-    + ' <a href="' + PATREON_JOIN_URL + '" target="_blank" style="font-size:11px;font-weight:700;color:#2563eb">Upgrade &rarr;</a>'
-    + ' <button onclick="patreonLogout()" style="margin-left:8px;font-size:10px;color:#6b7280;background:none;border:none;cursor:pointer;font-family:inherit">Sign out</button>';
-}
+// ── AUTH UI ───────────────────────────────────────────────────────────
+var GSVG = '""" + GOOGLE_SVG.replace("'", "\\'") + """';
 
 function updateAuthUI() {
   var bar = document.getElementById('auth-bar');
   if (!bar) return;
-  var name = localStorage.getItem('patreon_name') || 'Member';
-  if (IS_MEMBER) {
-    bar.innerHTML = '<span style="color:#15803d;font-size:11px;font-weight:700">&#10003; Portfolio Builder &mdash; ' + name + '</span>'
-      + ' <button onclick="patreonLogout()" style="margin-left:8px;font-size:10px;color:#6b7280;background:none;border:none;cursor:pointer;font-family:inherit">Sign out</button>';
+  var left='', right='';
+
+  if (AUTH_LEVEL === 'patreon') {
+    var n = getPatreonName();
+    left  = '<span class="tier-badge tier-patreon">&#10003; Portfolio Builder</span>'
+           +'<span class="auth-name">'+n+'</span>';
+    right = '<button class="btn-signout" onclick="patreonLogout()">Sign out</button>';
+
+  } else if (AUTH_LEVEL === 'google') {
+    var n = getGoogleName();
+    left  = '<span class="tier-badge tier-google">&#10003; Google</span>'
+           +'<span class="auth-name">'+n+'</span>'
+           +'<span style="color:#e5e7eb">|</span>'
+           +'<span class="auth-nudge">Seeing <strong>'+GOOGLE_ROWS+' of '+N_TOTAL+' stocks</strong>'
+           +' &mdash; <a href="'+PATREON_JOIN_URL+'" target="_blank">Unlock all with Patreon &rarr;</a></span>';
+    right = '<button class="btn-patreon" onclick="patreonLogin()">&#128994; Connect Patreon</button>'
+           +'<button class="btn-signout" onclick="googleLogout()">Sign out</button>';
+
   } else {
-    bar.innerHTML = '<button onclick="patreonLogin()" style="display:inline-flex;align-items:center;gap:6px;background:#e85b46;color:#fff;border:none;border-radius:3px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">&#128994; Connect with Patreon</button>'
-      + ' <span style="font-size:10px;color:#9ca3af;margin-left:6px">or <a href="' + PATREON_JOIN_URL + '" target="_blank" style="color:#2563eb;font-weight:600">become a Portfolio Builder member</a></span>';
+    left  = '<span class="tier-badge tier-anon">Free</span>'
+           +'<span class="auth-nudge">Seeing <strong>'+FREE_ROWS+' of '+N_TOTAL+' stocks</strong>'
+           +' &mdash; sign in for more</span>';
+    right = '<button class="btn-google" onclick="googleLogin()">'+GSVG+' Sign in with Google</button>'
+           +'<button class="btn-patreon" onclick="patreonLogin()">&#128994; Connect Patreon</button>';
   }
+
+  bar.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+left+'</div>'
+                + '<div class="auth-actions">'+right+'</div>';
 }
 
-// ── TABLE INIT ────────────────────────────────────────────────────────
-var PAGE_SIZE = 50;
-var visibleUpTo = PAGE_SIZE; // non-members see FREE_ROWS max anyway
-
-function initTable() {
-  renderRows();
-  renderPaywall();
-  updateCount();
+function showNotPatreonMember() {
+  var bar = document.getElementById('auth-bar');
+  if (!bar) return;
+  bar.innerHTML = '<span style="color:#b91c1c;font-size:11px;font-weight:600">'
+    +'&#10007; Patreon account is not a Portfolio Builder member.</span>'
+    +' <a href="'+PATREON_JOIN_URL+'" target="_blank" style="font-size:11px;font-weight:700;color:#2563eb">Upgrade &rarr;</a>';
 }
+
+// ── TABLE ─────────────────────────────────────────────────────────────
+function rowLimit() {
+  if (AUTH_LEVEL === 'patreon') return Infinity;
+  if (AUTH_LEVEL === 'google')  return GOOGLE_ROWS;
+  return FREE_ROWS;
+}
+
+function initTable() { renderRows(); renderPaywall(); updateCount(); }
 
 function renderRows() {
-  var rows = document.querySelectorAll('#tbody .sr');
-  rows.forEach(function(r) {
-    var idx = parseInt(r.dataset.idx);
-    var authOk  = IS_MEMBER || idx < FREE_ROWS;
-    var pageOk  = IS_MEMBER ? idx < visibleUpTo : true;
+  var limit = rowLimit();
+  var allRows = document.querySelectorAll('#tbody .sr');
+  allRows.forEach(function(r) {
+    var idx   = parseInt(r.dataset.idx);
+    var authOk = idx < limit;
+    var pageOk = (AUTH_LEVEL === 'patreon') ? idx < visibleUpTo : true;
     r.style.display = (authOk && pageOk) ? '' : 'none';
   });
-  // Show/hide load more button
-  var total = document.querySelectorAll('#tbody .sr').length;
   var btn = document.getElementById('load-more-btn');
   if (btn) {
-    btn.style.display = (IS_MEMBER && visibleUpTo < total) ? '' : 'none';
-    btn.textContent = 'Show next 50 (' + Math.min(visibleUpTo + PAGE_SIZE, total) + ' of ' + total + ' total)';
+    var total = allRows.length;
+    btn.style.display = (AUTH_LEVEL === 'patreon' && visibleUpTo < total) ? '' : 'none';
+    btn.textContent = 'Show next 50 ('+ Math.min(visibleUpTo+PAGE_SIZE, total) +' of '+total+' total)';
   }
 }
 
-function loadMore() {
-  visibleUpTo += PAGE_SIZE;
-  renderRows();
-  updateCount();
-}
+function loadMore() { visibleUpTo += PAGE_SIZE; renderRows(); updateCount(); }
 
 function updateCount() {
   var shown = 0;
-  document.querySelectorAll('#tbody .sr').forEach(function(r) {
+  document.querySelectorAll('#tbody .sr').forEach(function(r){
     if (r.style.display !== 'none') shown++;
   });
   var el = document.getElementById('rcnt');
-  if (el) el.textContent = shown + ' result' + (shown !== 1 ? 's' : '');
+  if (el) el.textContent = shown + ' result' + (shown!==1?'s':'');
 }
 
 function renderPaywall() {
-  var existing = document.getElementById('inline-pw');
-  if (existing) existing.remove();
-  if (IS_MEMBER) return;
+  var old = document.getElementById('inline-pw');
+  if (old) old.remove();
+  if (AUTH_LEVEL === 'patreon') return;
 
-  var rows = document.querySelectorAll('#tbody .sr');
-  var lastVisible = null;
-  rows.forEach(function(r) {
-    if (r.style.display !== 'none') lastVisible = r;
-  });
-  if (!lastVisible) return;
+  var allRows = document.querySelectorAll('#tbody .sr');
+  var last = null;
+  allRows.forEach(function(r){ if (r.style.display!=='none') last=r; });
+  if (!last) return;
+
+  var isGoogle  = AUTH_LEVEL === 'google';
+  var seenCount = isGoogle ? GOOGLE_ROWS : FREE_ROWS;
+  var icon      = isGoogle ? '&#128274;' : '&#128270;';
+  var title     = isGoogle ? 'Unlock the Full Screener' : 'See More — Free';
+  var sub       = isGoogle
+    ? 'You have access to <strong>'+seenCount+' of '+N_TOTAL+' stocks</strong>.<br>Join Patreon Portfolio Builder for full access.'
+    : 'You\'re seeing <strong>'+seenCount+' of '+N_TOTAL+' stocks</strong>.<br>'
+      +'Sign in with Google to unlock <strong>'+GOOGLE_ROWS+' stocks free</strong>, or join Patreon for everything.';
+
+  var googleBtn = !isGoogle
+    ? '<button onclick="googleLogin()" class="btn-google" style="width:260px;justify-content:center;padding:10px 0;font-size:12px">'
+      +GSVG+' Sign in with Google &mdash; free</button>'
+    : '';
 
   var pw = document.createElement('tr');
   pw.id = 'inline-pw';
-  pw.innerHTML = '<td colspan="14" style="padding:0">'
-    + '<div style="background:linear-gradient(to bottom,rgba(255,255,255,0) 0%,#fff 60%);height:50px"></div>'
-    + '<div style="background:#fff;padding:28px 20px;text-align:center;border-top:2px solid #e5e7eb">'
-    + '<div style="font-size:20px;margin-bottom:8px">&#128274;</div>'
-    + '<div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:6px">Unlock the Full Screener</div>'
-    + '<div style="font-size:12px;color:#6b7280;line-height:1.6;margin-bottom:16px">You&rsquo;re seeing <strong>' + FREE_ROWS + ' of ' + N_TOTAL + ' stocks</strong>.<br>Portfolio Builder members get full access to all results, filters and weekly updates.</div>'
-    + '<div style="display:flex;flex-direction:column;align-items:center;gap:8px">'
-    + '<button onclick="patreonLogin()" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#e85b46;color:#fff;border:none;border-radius:4px;padding:11px 28px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;width:280px">&#128994; Connect with Patreon</button>'
-    + '<a href="' + PATREON_JOIN_URL + '" target="_blank" style="display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#374151;font-size:12px;font-weight:600;padding:9px 28px;border-radius:4px;text-decoration:none;border:1px solid #d1d5db;width:280px">Become a Portfolio Builder member &rarr;</a>'
-    + '</div>'
-    + '<div style="font-size:10px;color:#9ca3af;margin-top:10px">Portfolio Builder membership on Patreon &middot; Cancel anytime</div>'
-    + '</div></td>';
-  lastVisible.insertAdjacentElement('afterend', pw);
+  pw.className = 'pw-row';
+  pw.innerHTML = '<td colspan="14">'
+    +'<div class="pw-gradient"></div>'
+    +'<div class="pw-box">'
+    +'<div class="pw-icon">'+icon+'</div>'
+    +'<div class="pw-title">'+title+'</div>'
+    +'<div class="pw-sub">'+sub+'</div>'
+    +'<div class="pw-btns">'
+    +googleBtn
+    +'<button onclick="patreonLogin()" class="btn-patreon" style="width:260px;justify-content:center;padding:10px 0;font-size:12px">'
+    +'&#128994; Connect Patreon &mdash; full access</button>'
+    +'</div>'
+    +'<div class="pw-note">Portfolio Builder on Patreon &middot; Cancel anytime</div>'
+    +'</div></td>';
+  last.insertAdjacentElement('afterend', pw);
 }
 
 function apply() {
-  var rows = document.querySelectorAll('#tbody .sr');
-  rows.forEach(function(r) {
-    var idx = parseInt(r.dataset.idx);
+  var limit = rowLimit();
+  document.querySelectorAll('#tbody .sr').forEach(function(r) {
+    var idx    = parseInt(r.dataset.idx);
     var philOk = true;
-    if (gP==='g'&&r.dataset.g!=='true') philOk=false;
+    if      (gP==='g'&&r.dataset.g!=='true') philOk=false;
     else if (gP==='l'&&r.dataset.l!=='true') philOk=false;
     else if (gP==='b'&&r.dataset.b!=='true') philOk=false;
     else if (gP==='p'&&r.dataset.p!=='true') philOk=false;
     else if (gP==='a'&&r.dataset.a!=='true') philOk=false;
-    var secOk  = !gS || r.dataset.sec === gS;
-    var srchOk = !gQ || r.dataset.tk.indexOf(gQ) !== -1 || r.dataset.co.indexOf(gQ) !== -1;
-    var authOk = IS_MEMBER || idx < FREE_ROWS;
-    var pageOk = IS_MEMBER ? idx < visibleUpTo : true;
-    // When searching/filtering, show all matching for members
-    var searching = gP !== 'all' || gS !== '' || gQ !== '';
-    if (searching && IS_MEMBER) pageOk = true;
-    r.style.display = (philOk && secOk && srchOk && authOk && pageOk) ? '' : 'none';
+    var secOk  = !gS || r.dataset.sec===gS;
+    var srchOk = !gQ || r.dataset.tk.indexOf(gQ)!==-1 || r.dataset.co.indexOf(gQ)!==-1;
+    var authOk = idx < limit;
+    var pageOk = (AUTH_LEVEL==='patreon') ? idx < visibleUpTo : true;
+    var searching = gP!=='all'||gS!==''||gQ!=='';
+    if (searching && AUTH_LEVEL==='patreon') pageOk=true;
+    r.style.display = (philOk&&secOk&&srchOk&&authOk&&pageOk) ? '' : 'none';
   });
   updateCount();
   renderPaywall();
 }
 
-function fPhil(btn,v){gP=v;document.querySelectorAll('.chip[onclick*="fPhil"]').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');apply();}
-function fSec(btn,v){gS=v;document.querySelectorAll('.chip[onclick*="fSec"]').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');apply();}
+function fPhil(b,v){gP=v;document.querySelectorAll('.chip[onclick*="fPhil"]').forEach(function(x){x.classList.remove('on')});b.classList.add('on');apply();}
+function fSec(b,v){gS=v;document.querySelectorAll('.chip[onclick*="fSec"]').forEach(function(x){x.classList.remove('on')});b.classList.add('on');apply();}
 function fSrch(v){gQ=v.toLowerCase().trim();apply();}
 function fFaq(q){var a=q.nextElementSibling,ch=q.querySelector('.faqch'),open=a.classList.contains('open');a.classList.toggle('open',!open);ch.style.transform=open?'':'rotate(180deg)';a.style.maxHeight=open?'0':(a.scrollHeight+20)+'px';}
 
 // ── BOOT ──────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', function() {
-  // Priority order: Streamlit callback > OAuth callback > cached session
-  if (handleStreamlitCallback()) {
-    updateAuthUI();
-    initTable();
-  } else if (handleOAuthCallback()) {
-    // Redirecting to Streamlit proxy — do nothing
-  } else {
-    checkCachedSession();
-    updateAuthUI();
-    initTable();
+  // 1. Handle Patreon / Streamlit callback
+  var wasCallback = handleStreamlitCallback() || handleOAuthCallback();
+  if (wasCallback && window.location.href !== PATREON_REDIRECT) return;
+
+  // 2. Restore auth level from localStorage
+  if (!wasCallback) {
+    if      (checkPatreonLocal()) AUTH_LEVEL = 'patreon';
+    else if (checkLocalGoogle())  AUTH_LEVEL = 'google';
   }
+
+  // 3. Init Firebase — onAuthStateChanged takes over from here
+  initFirebase();
 });
 """
 
     _html_before = f"""<!-- wp:html -->
 <script type="application/ld+json">{json.dumps(schema)}</script>
 <style>{CSS}</style>
+<!-- /wp:html -->
+
+<!-- wp:html -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <div class="scr">
 
 <div class="tb">
-  <div class="tbb">Alert<em>Invest</em> <span style="font-size:11px;font-weight:400;color:#6b7280">/ S&P 500 Screener</span></div>
-  <div id="auth-bar" style="display:flex;align-items:center;gap:6px"></div>
+  <div class="tbb">Alert<em>Invest</em> <span style="font-size:11px;font-weight:400;color:#6b7280">/ S&amp;P 500 Screener</span></div>
   <div class="tbst">
     <div class="tbsi"><span class="tbn">{n_total}</span><span class="tbl">Stocks</span></div>
     <div class="tbsi"><span class="tbn g">{n_graham}</span><span class="tbl">Graham</span></div>
@@ -568,6 +684,13 @@ window.addEventListener('DOMContentLoaded', function() {
     <div class="tbsi"><span class="tbn y">{n_pass}</span><span class="tbl">Pass All</span></div>
   </div>
   <div class="tbu">Updated {updated_at}</div>
+</div>
+
+<div class="auth-bar" id="auth-bar">
+  <div style="display:flex;align-items:center;gap:8px">
+    <span class="tier-badge tier-anon">Free</span>
+    <span class="auth-nudge">Loading&hellip;</span>
+  </div>
 </div>
 
 <div class="fb">
@@ -589,34 +712,40 @@ window.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="t10-wrap">
-  <div class="t10-hdr"><span class="t10-hdr-t">Top 10 This Week</span><span class="t10-hdr-s">Ranked by combined Graham + Lynch + Buffett score</span></div>
+  <div class="t10-hdr">
+    <span class="t10-hdr-t">Top 10 This Week</span>
+    <span class="t10-hdr-s">Ranked by combined Graham + Lynch + Buffett score</span>
+  </div>
   {t10_html}
 </div>
 
 <div class="tw">
   <div class="tbar">
-    <span class="tbrt">S&P 500 Value Screener &mdash; {n_total} Stocks</span>
+    <span class="tbrt">S&amp;P 500 Value Screener &mdash; {n_total} Stocks</span>
     <span class="tbrm">P/E &middot; PEG &middot; D/E &middot; ROIC &middot; Graham &middot; Lynch &middot; Buffett &middot; MoS &middot; Rev Gr &middot; EPS Gr &middot; Op Mar</span>
   </div>
   <div class="tsc">
   <table class="t">
     <thead><tr>
       <th>Stock</th><th>Sector</th>
-      <th class="tn" title="P/E TTM">P/E</th><th class="tn" title="PEG Ratio">PEG</th>
-      <th class="tn" title="Debt/Equity">D/E</th><th class="tn" title="Return on Invested Capital">ROIC</th>
-      <th title="Graham screen">Graham</th><th title="Lynch GARP">Lynch</th>
-      <th title="Buffett quality">Buffett</th><th title="Pass All criteria">Pass All</th>
+      <th class="tn" title="P/E TTM">P/E</th>
+      <th class="tn" title="PEG Ratio">PEG</th>
+      <th class="tn" title="Debt/Equity">D/E</th>
+      <th class="tn" title="Return on Invested Capital">ROIC</th>
+      <th title="Graham screen">Graham</th>
+      <th title="Lynch GARP">Lynch</th>
+      <th title="Buffett quality">Buffett</th>
+      <th title="Pass All criteria">Pass All</th>
       <th title="Margin of Safety">MoS</th>
       <th class="tn" title="Revenue Growth YoY">Rev Gr</th>
       <th class="tn" title="EPS Growth">EPS Gr</th>
       <th class="tn" title="Operating Margin">Op Mar</th>
     </tr></thead>
-    <tbody id="tbody">{rows}</tbody>
+    <tbody id="tbody">{rows_html}</tbody>
   </table>
   </div>
 </div>
 
-<!-- paywall rendered inline by JS -->
 <div id="load-more-wrap" style="text-align:center;padding:12px;background:#fff;border:1px solid #d1d5db;border-top:none;border-radius:0 0 5px 5px;margin-top:-7px;margin-bottom:7px">
   <button id="load-more-btn" onclick="loadMore()" style="display:none;background:#f9fafb;border:1px solid #d1d5db;border-radius:3px;padding:7px 20px;font-size:11px;font-weight:600;color:#374151;cursor:pointer;font-family:inherit">Show next 50</button>
 </div>
@@ -631,18 +760,20 @@ window.addEventListener('DOMContentLoaded', function() {
 <p class="disc">Not investment advice. Data from Financial Modeling Prep API. TTM metrics. &copy; <a href="{WP_URL}">Alert Invest</a></p>
 </div>
 <script>"""
-    _html_after = f"""</script>
+
+    _html_after = """</script>
 <!-- /wp:html -->"""
+
     return _html_before + JS + _html_after
 
 
+# ─────────────────────────────────────────────────────────────────────
 def deploy_page(html, updated_at):
     import base64
-    # Try JWT auth first, fall back to Basic Auth (Application Passwords)
     token = None
     try:
         r = requests.post(f"{WP_URL}/wp-json/jwt-auth/v1/token",
-                          json={"username":WP_USER,"password":WP_PASSWORD},timeout=15)
+                          json={"username":WP_USER,"password":WP_PASSWORD}, timeout=15)
         if r.status_code == 200 and r.text.strip():
             token = r.json().get("token")
     except Exception as e:
@@ -652,49 +783,63 @@ def deploy_page(html, updated_at):
         headers = {"Authorization": f"Bearer {token}"}
         print("  Auth: JWT")
     else:
-        # Fallback: Basic Auth with Application Password
         creds = base64.b64encode(f"{WP_USER}:{WP_PASSWORD}".encode()).decode()
         headers = {"Authorization": f"Basic {creds}"}
         print("  Auth: Basic (Application Password)")
-    payload = {"title":"S&P 500 Value Stock Screener — Graham, Lynch & Buffett | Alert Invest",
-               "content":html,"status":"publish","slug":WP_SLUG,
-               "meta":{"_wp_page_template":"default"}}
-    search = requests.get(f"{WP_URL}/wp-json/wp/v2/pages",params={"slug":WP_SLUG},headers=headers,timeout=15).json()
-    if search and isinstance(search,list) and len(search)>0:
-        pid=search[0]["id"]
-        res=requests.post(f"{WP_URL}/wp-json/wp/v2/pages/{pid}",headers=headers,json=payload,timeout=120)
-        action="Updated"
+
+    payload = {
+        "title":   "S&P 500 Value Stock Screener — Graham, Lynch & Buffett | Alert Invest",
+        "content": html,
+        "status":  "publish",
+        "slug":    WP_SLUG,
+        "meta":    {"_wp_page_template": "default"}
+    }
+    search = requests.get(f"{WP_URL}/wp-json/wp/v2/pages",
+                          params={"slug":WP_SLUG}, headers=headers, timeout=15).json()
+    if search and isinstance(search, list) and len(search) > 0:
+        pid = search[0]["id"]
+        res = requests.post(f"{WP_URL}/wp-json/wp/v2/pages/{pid}",
+                            headers=headers, json=payload, timeout=120)
+        action = "Updated"
     else:
-        res=requests.post(f"{WP_URL}/wp-json/wp/v2/pages",headers=headers,json=payload,timeout=120)
-        action="Created"
-    if res.status_code in[200,201]:
-        print(f"  ✅ {action}: {WP_URL}/{WP_SLUG}/"); return True
+        res = requests.post(f"{WP_URL}/wp-json/wp/v2/pages",
+                            headers=headers, json=payload, timeout=120)
+        action = "Created"
+
+    if res.status_code in [200, 201]:
+        print(f"  ✅ {action}: {WP_URL}/{WP_SLUG}/")
+        return True
     else:
-        print(f"  ✗ WP error {res.status_code}: {res.text[:300]}"); return False
+        print(f"  ✗ WP error {res.status_code}: {res.text[:300]}")
+        return False
 
 
+# ─────────────────────────────────────────────────────────────────────
 def main():
-    parser=argparse.ArgumentParser()
-    parser.add_argument("--dry-run",action="store_true")
-    args=parser.parse_args()
-    updated_at=datetime.now().strftime("%Y-%m-%d %H:%M UTC")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    updated_at = datetime.now().strftime("%Y-%m-%d %H:%M UTC")
     print(f"\n{'='*60}\n  Alert Invest Screener Builder — {updated_at}\n{'='*60}\n")
     print("  Fetching Screener CSV...")
-    sr=fetch_csv(SCREENER_CSV); print(f"  → {len(sr)} rows")
+    sr = fetch_csv(SCREENER_CSV); print(f"  → {len(sr)} rows")
     print("  Fetching Top 10 CSV...")
-    tr=fetch_csv(TOP10_CSV); print(f"  → {len(tr)} rows")
-    stocks=parse_screener(sr); top10=parse_top10(tr)
+    tr = fetch_csv(TOP10_CSV); print(f"  → {len(tr)} rows")
+    stocks = parse_screener(sr)
+    top10  = parse_top10(tr)
     print(f"\n  Parsed {len(stocks)} stocks, {len(top10)} top 10 entries")
     if not stocks: print("  ✗ No stocks parsed"); return
     print("  Building HTML...")
-    html=build_html(stocks,top10,updated_at); print(f"  → {len(html):,} chars")
+    html = build_html(stocks, top10, updated_at)
+    print(f"  → {len(html):,} chars")
     if args.dry_run:
-        os.makedirs("output",exist_ok=True)
-        open("output/screener.html","w",encoding="utf-8").write(html)
+        os.makedirs("output", exist_ok=True)
+        open("output/screener.html", "w", encoding="utf-8").write(html)
         print("  Saved: output/screener.html")
     else:
-        print("  Deploying to WordPress..."); deploy_page(html,updated_at)
+        print("  Deploying to WordPress...")
+        deploy_page(html, updated_at)
     print(f"\n{'='*60}\n  Done.\n")
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
