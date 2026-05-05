@@ -349,20 +349,33 @@ var gP='all', gS='', gQ='';
 // ── FIREBASE ──────────────────────────────────────────────────────────
 function initFirebase() {
   if (typeof firebase === 'undefined') { updateAuthUI(); initTable(); return; }
-  if (!firebase.apps.length) firebase.initializeApp(FB_CFG);
-  var auth = firebase.auth();
-  auth.onAuthStateChanged(function(user) {
-    FB_USER = user;
-    if (user && AUTH_LEVEL !== 'patreon') {
-      AUTH_LEVEL = 'google';
-      saveLocalGoogle(user);
-      writeUserToFirestore(user);
-    } else if (!user && AUTH_LEVEL === 'google') {
-      AUTH_LEVEL = 'anon';
-    }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FB_CFG);
+  } catch(e) {
+    console.warn('Firebase init failed:', e.message);
     updateAuthUI();
     initTable();
-  });
+    return;
+  }
+try {
+    var auth = firebase.auth();
+    auth.onAuthStateChanged(function(user) {
+      FB_USER = user;
+      if (user && AUTH_LEVEL !== 'patreon') {
+        AUTH_LEVEL = 'google';
+        saveLocalGoogle(user);
+        writeUserToFirestore(user);
+      } else if (!user && AUTH_LEVEL === 'google') {
+        AUTH_LEVEL = 'anon';
+      }
+      updateAuthUI();
+      initTable();
+    });
+  } catch(e) {
+    console.warn('Firebase auth failed:', e.message);
+    updateAuthUI();
+    initTable();
+  }
 }
 
 function googleLogin() {
